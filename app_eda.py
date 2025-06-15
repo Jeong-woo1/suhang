@@ -6,29 +6,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import platform
 
-# --------------------
-# 한글 폰트 설정 (matplotlib)
-# --------------------
-# OS별로 다른 폰트 경로 설정
-def get_korean_font():
-    if platform.system() == 'Windows':
-        return 'Malgun Gothic'
-    elif platform.system() == 'Darwin': # macOS
-        return 'AppleGothic'
-    else: # Linux (Google Colab, Streamlit Cloud 등)
-        # 나눔 폰트를 미리 설치해야 합니다.
-        # Streamlit Cloud 배포 시 packages.txt에 'fonts-nanum*' 추가 필요
-        return 'NanumGothic'
-
-plt.rc('font', family=get_korean_font())
-plt.rcParams['axes.unicode_minus'] = False # 마이너스 폰트 깨짐 방지
-
-
-# --------------------
+# ---------------------
 # Firebase 설정
-# --------------------
+# ---------------------
 firebase_config = {
     "apiKey": "AIzaSyCswFmrOGU3FyLYxwbNPTp7hvQxLfTPIZw",
     "authDomain": "sw-projects-49798.firebaseapp.com",
@@ -44,373 +25,449 @@ auth = firebase.auth()
 firestore = firebase.database()
 storage = firebase.storage()
 
-# --------------------
+# ---------------------
 # 세션 상태 초기화
-# --------------------
+# ---------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_email = ""
+    st.session_state.id_token = ""
     st.session_state.user_name = ""
+    st.session_state.user_gender = "선택 안함"
+    st.session_state.user_phone = ""
+    st.session_state.profile_image_url = ""
 
-# --------------------
-# 페이지 클래스 및 함수
-# --------------------
+# ---------------------
+# 홈 페이지 클래스
+# ---------------------
+class Home:
+    def __init__(self, login_page, register_page, findpw_page):
+        st.title("🏠 Home")
+        if st.session_state.get("logged_in"):
+            st.success(f"{st.session_state.get('user_email')}님 환영합니다.")
 
-class EDA:
-    """탐색적 데이터 분석 페이지를 위한 클래스"""
-    def run(self):
-        st.title("📊 탐색적 데이터 분석 (EDA)")
-        st.write("---")
+        # Kaggle 데이터셋 출처 및 소개
+        st.markdown("""
+                ---
+                **Bike Sharing Demand 데이터셋**  
+                - 제공처: [Kaggle Bike Sharing Demand Competition](https://www.kaggle.com/c/bike-sharing-demand)  
+                - 설명: 2011–2012년 캘리포니아 주의 수도인 미국 워싱턴 D.C. 인근 도시에서 시간별 자전거 대여량을 기록한 데이터  
+                - 주요 변수:  
+                  - `datetime`: 날짜 및 시간  
+                  - `season`: 계절  
+                  - `holiday`: 공휴일 여부  
+                  - `workingday`: 근무일 여부  
+                  - `weather`: 날씨 상태  
+                  - `temp`, `atemp`: 기온 및 체감온도  
+                  - `humidity`, `windspeed`: 습도 및 풍속  
+                  - `casual`, `registered`, `count`: 비등록·등록·전체 대여 횟수  
+                """)
 
-        # 두 개의 분석을 위한 탭 생성
-        tab_bike, tab_population = st.tabs(["🚲 자전거 수요 예측 분석", "👨‍👩‍👧‍👦 지역별 인구 분석"])
-
-        # =====================================================================
-        # 자전거 수요 예측 분석 탭
-        # =====================================================================
-        with tab_bike:
-            st.header("📁 파일 업로드")
-            uploaded_file = st.file_uploader("분석할 CSV 파일을 업로드하세요 (예: bike.csv).", type=['csv'], key="bike_uploader")
-
-            if uploaded_file is not None:
-                try:
-                    df = pd.read_csv(uploaded_file)
-                    st.success("파일이 성공적으로 업로드되었습니다.")
-
-                    st.subheader("데이터 미리보기")
-                    st.dataframe(df.head())
-
-                    st.subheader("데이터 기본 정보")
-                    buffer = io.StringIO()
-                    df.info(buf=buffer)
-                    s = buffer.getvalue()
-                    st.text(s)
-
-                    st.subheader("결측치 확인")
-                    st.dataframe(df.isnull().sum().to_frame('결측치 개수'))
-
-                    st.subheader("기술 통계량")
-                    st.dataframe(df.describe())
-
-                    st.header("📈 데이터 시각화")
-
-                    st.subheader("시간에 따른 자전거 대여량")
-                    df['datetime'] = pd.to_datetime(df['datetime'])
-                    df['year'] = df['datetime'].dt.year
-                    df['month'] = df['datetime'].dt.month
-                    df['day'] = df['datetime'].dt.day
-                    df['hour'] = df['datetime'].dt.hour
-                    
-                    hourly_counts = df.groupby('hour')['count'].mean()
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    hourly_counts.plot(kind='bar', ax=ax, color='skyblue')
-                    ax.set_title('시간대별 평균 자전거 대여량')
-                    ax.set_xlabel('시간')
-                    ax.set_ylabel('평균 대여량')
-                    ax.tick_params(axis='x', rotation=0)
-                    st.pyplot(fig)
-
-                    st.subheader("이상치(Outlier) 탐지: Box Plot")
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    sns.boxplot(data=df, y='count', ax=ax)
-                    ax.set_title('자전거 대여량(count)의 Box Plot')
-                    ax.set_ylabel('대여량')
-                    st.pyplot(fig)
-
-                    st.subheader("데이터 분포 변환: 로그 변환")
-                    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-                    sns.histplot(df['count'], kde=True, ax=axes[0])
-                    axes[0].set_title("Original Count Distribution")
-                    axes[0].set_xlabel("Count")
-                    axes[0].set_ylabel("Frequency")
-
-                    df['log_count'] = np.log1p(df['count'])
-                    sns.histplot(df['log_count'], kde=True, ax=axes[1])
-                    axes[1].set_title("Log(Count + 1) Distribution")
-                    axes[1].set_xlabel("Log(Count + 1)")
-                    axes[1].set_ylabel("Frequency")
-
-                    st.pyplot(fig)
-
-                    st.markdown("""
-                        > **그래프 해석:** > - 왼쪽: 원본 분포는 한쪽으로 긴 꼬리를 가진 왜곡된 형태입니다.  
-                        > - 오른쪽: 로그 변환 후 분포는 훨씬 균형잡힌 형태로, 중앙값 부근에 데이터가 집중됩니다.  
-                        > - 극단치의 영향이 완화되어 이후 분석·모델링 안정성이 높아집니다.
-                        """)
-                except Exception as e:
-                    st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
-
-        # =====================================================================
-        # 지역별 인구 분석 탭 (과제 수행 부분)
-        # =====================================================================
-        with tab_population:
-            st.header("📁 population_trends.csv 파일 업로드")
-            uploaded_pop_file = st.file_uploader("population_trends.csv 파일을 업로드하세요.", type=['csv'], key="population_uploader")
-
-            if uploaded_pop_file is not None:
-                try:
-                    df_pop = pd.read_csv(uploaded_pop_file)
-                    st.success("인구 데이터 파일이 성공적으로 업로드되었습니다.")
-                    
-                    # --- 데이터 전처리 (과제 요구사항) ---
-                    st.write("#### ✨ 데이터 전처리")
-                    with st.expander("전처리 과정 보기"):
-                        st.write("1. 컬럼명을 영문으로 변경합니다: '연도'->'Year', '지역'->'Region', '총인구수'->'Population'")
-                        df_pop.rename(columns={'연도': 'Year', '지역': 'Region', '총인구수': 'Population'}, inplace=True)
-                        
-                        st.write("2. '세종' 지역의 결측치를 이전 연도의 값으로 채웁니다. (Forward Fill)")
-                        df_pop.sort_values(by=['Region', 'Year'], inplace=True)
-                        df_pop['Population'] = df_pop.groupby('Region')['Population'].transform(lambda x: x.ffill())
-                        
-                        st.write("3. 전처리 후 남은 결측치가 있는 행을 제거하고, 인구수 데이터를 정수형으로 변환합니다.")
-                        df_pop.dropna(inplace=True)
-                        df_pop['Population'] = df_pop['Population'].astype(int)
-                        st.write("전처리가 완료되었습니다.")
-
-                    # --- 분석 탭 구성 (과제 요구사항) ---
-                    stat_tab, yearly_tab, regional_tab, change_tab, viz_tab = st.tabs([
-                        "기초 통계", "연도별 추이", "지역별 분석", "변화량 분석", "시각화"
-                    ])
-
-                    with stat_tab:
-                        st.subheader("기초 통계 분석")
-                        st.write("##### 📊 데이터 샘플")
-                        st.dataframe(df_pop.head())
-
-                        st.write("##### 🔢 기술 통계")
-                        st.dataframe(df_pop.describe())
-
-                        st.write("##### ❓ 결측치 확인")
-                        st.dataframe(df_pop.isnull().sum().to_frame('결측치 개수'))
-
-                        st.write("##### ⛓️ 중복 데이터 확인")
-                        st.write(f"중복된 행의 개수: {df_pop.duplicated().sum()} 개")
-
-                    with yearly_tab:
-                        st.subheader("연도별 전체 인구 추이")
-                        yearly_total_pop = df_pop.groupby('Year')['Population'].sum()
-                        st.line_chart(yearly_total_pop)
-                        with st.expander("데이터 테이블 보기"):
-                            st.dataframe(yearly_total_pop)
-
-                    with regional_tab:
-                        st.subheader("최신 연도 기준 지역별 인구수")
-                        latest_year = df_pop['Year'].max()
-                        st.write(f"기준 연도: **{latest_year}년**")
-                        
-                        latest_pop = df_pop[df_pop['Year'] == latest_year].sort_values("Population", ascending=False)
-                        
-                        fig, ax = plt.subplots(figsize=(12, 8))
-                        sns.barplot(data=latest_pop, x='Region', y='Population', ax=ax, palette='viridis')
-                        ax.set_title(f'{latest_year}년 지역별 인구수')
-                        ax.set_xlabel('지역')
-                        ax.set_ylabel('인구수 (명)')
-                        plt.xticks(rotation=45, ha='right')
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        
-                        with st.expander("데이터 테이블 보기"):
-                            st.dataframe(latest_pop.style.format({'Population': '{:,}'}))
-
-                    with change_tab:
-                        st.subheader("인구 변화량 분석")
-                        
-                        # 1. 이전 연도 대비 증감 계산 (과제 프롬프트 예시 구현)
-                        st.write("##### 📈 이전 연도 대비 인구 증감 Top 100")
-                        st.info("각 지역의 이전 연도 대비 인구 증감량을 계산하여 상위 100개 사례를 보여줍니다.")
-                        df_pop.sort_values(by=['Region', 'Year'], inplace=True)
-                        df_pop['증감'] = df_pop.groupby('Region')['Population'].diff()
-                        
-                        top_100_changes = df_pop.dropna(subset=['증감']).nlargest(100, '증감')
-                        st.dataframe(top_100_changes[['Year', 'Region', 'Population', '증감']]
-                                     .style.format({'Population': '{:,}', '증감': '{:+,}'})
-                                     .background_gradient(cmap='bwr', subset=['증감'], vmin=-top_100_changes['증감'].abs().max(), vmax=top_100_changes['증감'].abs().max())
-                                    )
-
-                        # 2. 분석 기간 전체의 인구 변화
-                        st.write("##### 📊 분석 기간 전체 인구 변화량")
-                        start_year = df_pop['Year'].min()
-                        end_year = df_pop['Year'].max()
-                        st.info(f"{start_year}년부터 {end_year}년까지의 지역별 전체 인구 변화량을 보여줍니다.")
-                        
-                        start_pop = df_pop[df_pop['Year'] == start_year].set_index('Region')['Population']
-                        end_pop = df_pop[df_pop['Year'] == end_year].set_index('Region')['Population']
-                        
-                        change_df = pd.DataFrame({
-                            f'{start_year}년 인구': start_pop,
-                            f'{end_year}년 인구': end_pop,
-                            '변화량': end_pop - start_pop
-                        }).dropna()
-                        change_df['변화량'] = change_df['변화량'].astype(int)
-                        
-                        st.dataframe(change_df.sort_values('변화량', ascending=False)
-                                     .style.format('{:,}').bar(subset=['변화량'], align='zero', color=['#d65f5f', '#5fba7d']))
-
-
-                    with viz_tab:
-                        st.subheader("누적 영역 그래프 시각화")
-                        st.info("연도에 따른 지역별 인구수 변화를 누적하여 보여줍니다. '전국' 데이터는 시각화에서 제외되었습니다.")
-                        
-                        # Pivot table 생성
-                        pivot_df = df_pop[df_pop['Region'] != '전국'].pivot_table(
-                            index='Year', columns='Region', values='Population', aggfunc='sum'
-                        )
-                        pivot_df.fillna(0, inplace=True) # 결측치는 0으로 채워서 그래프 오류 방지
-
-                        # Streamlit 내장 차트 사용
-                        st.write("##### Streamlit 내장 누적 영역 그래프")
-                        st.area_chart(pivot_df)
-
-                        # Seaborn/Matplotlib을 이용한 시각화 (과제 프롬프트 예시 구현)
-                        st.write("##### Seaborn 누적 영역 그래프")
-                        # 한글 레이블을 영문으로 변경 (선택사항, 프롬프트 예시 기반)
-                        region_map = {
-                            '서울': 'Seoul', '부산': 'Busan', '대구': 'Daegu', '인천': 'Incheon',
-                            '광주': 'Gwangju', '대전': 'Daejeon', '울산': 'Ulsan', '세종': 'Sejong',
-                            '경기': 'Gyeonggi', '강원': 'Gangwon', '충북': 'Chungbuk', '충남': 'Chungnam',
-                            '전북': 'Jeonbuk', '전남': 'Jeonnam', '경북': 'Gyeongbuk', '경남': 'Gyeongnam', '제주': 'Jeju'
-                        }
-                        pivot_df_en = pivot_df.rename(columns=region_map)
-                        
-                        fig, ax = plt.subplots(figsize=(15, 10))
-                        palette = sns.color_palette("tab20", n_colors=len(pivot_df_en.columns))
-                        
-                        ax.stackplot(pivot_df_en.index, pivot_df_en.T, labels=pivot_df_en.columns, colors=palette, alpha=0.8)
-                        
-                        ax.set_title('Population Trends by Region', fontsize=16)
-                        ax.set_xlabel('Year')
-                        ax.set_ylabel('Population')
-                        ax.legend(loc='upper left', title="Regions")
-                        plt.tight_layout()
-                        st.pyplot(fig)
-
-
-                except Exception as e:
-                    st.error(f"인구 데이터 분석 중 오류가 발생했습니다: {e}")
-
+# ---------------------
+# 로그인 페이지 클래스
+# ---------------------
 class Login:
-    # ... (기존 Login 클래스 코드 유지)
-    def run(self):
-        st.set_page_config(page_title="로그인", layout="centered")
-        st.title("로그인")
-        email = st.text_input("이메일", key="login_email")
-        password = st.text_input("비밀번호", type="password", key="login_password")
+    def __init__(self):
+        st.title("🔐 로그인")
+        email = st.text_input("이메일")
+        password = st.text_input("비밀번호", type="password")
         if st.button("로그인"):
             try:
                 user = auth.sign_in_with_email_and_password(email, password)
                 st.session_state.logged_in = True
                 st.session_state.user_email = email
-                user_info = firestore.child("users").child(user['localId']).get().val()
-                st.session_state.user_name = user_info.get('name', '사용자')
+                st.session_state.id_token = user['idToken']
+
+                user_info = firestore.child("users").child(email.replace(".", "_")).get().val()
+                if user_info:
+                    st.session_state.user_name = user_info.get("name", "")
+                    st.session_state.user_gender = user_info.get("gender", "선택 안함")
+                    st.session_state.user_phone = user_info.get("phone", "")
+                    st.session_state.profile_image_url = user_info.get("profile_image_url", "")
+
+                st.success("로그인 성공!")
+                time.sleep(1)
                 st.rerun()
-            except Exception as e:
-                st.error("이메일 또는 비밀번호가 잘못되었습니다.")
+            except Exception:
+                st.error("로그인 실패")
 
+# ---------------------
+# 회원가입 페이지 클래스
+# ---------------------
 class Register:
-    # ... (기존 Register 클래스 코드 유지)
-    def __init__(self, login_path):
-        self.login_path = login_path
+    def __init__(self, login_page_url):
+        st.title("📝 회원가입")
+        email = st.text_input("이메일")
+        password = st.text_input("비밀번호", type="password")
+        name = st.text_input("성명")
+        gender = st.selectbox("성별", ["선택 안함", "남성", "여성"])
+        phone = st.text_input("휴대전화번호")
 
-    def run(self):
-        st.set_page_config(page_title="회원가입", layout="centered")
-        st.title("회원가입")
-        email = st.text_input("이메일", key="register_email")
-        password = st.text_input("비밀번호", type="password", key="register_password")
-        confirm_password = st.text_input("비밀번호 확인", type="password", key="register_confirm_password")
-        name = st.text_input("이름", key="register_name")
         if st.button("회원가입"):
-            if password == confirm_password:
-                try:
-                    user = auth.create_user_with_email_and_password(email, password)
-                    user_data = {"name": name, "email": email}
-                    firestore.child("users").child(user['localId']).set(user_data)
-                    st.success("회원가입 성공! 로그인 페이지로 이동합니다.")
-                    time.sleep(1)
-                    st.switch_page(self.login_path)
-                except Exception as e:
-                    st.error(f"회원가입 실패: {e}")
-            else:
-                st.error("비밀번호가 일치하지 않습니다.")
+            try:
+                auth.create_user_with_email_and_password(email, password)
+                firestore.child("users").child(email.replace(".", "_")).set({
+                    "email": email,
+                    "name": name,
+                    "gender": gender,
+                    "phone": phone,
+                    "role": "user",
+                    "profile_image_url": ""
+                })
+                st.success("회원가입 성공! 로그인 페이지로 이동합니다.")
+                time.sleep(1)
+                st.switch_page(login_page_url)
+            except Exception:
+                st.error("회원가입 실패")
 
+# ---------------------
+# 비밀번호 찾기 페이지 클래스
+# ---------------------
 class FindPassword:
-    # ... (기존 FindPassword 클래스 코드 유지)
-    def run(self):
-        st.set_page_config(page_title="비밀번호 찾기", layout="centered")
-        st.title("비밀번호 찾기")
-        email = st.text_input("가입한 이메일 주소를 입력하세요.", key="find_pw_email")
-        if st.button("비밀번호 재설정 이메일 보내기"):
+    def __init__(self):
+        st.title("🔎 비밀번호 찾기")
+        email = st.text_input("이메일")
+        if st.button("비밀번호 재설정 메일 전송"):
             try:
                 auth.send_password_reset_email(email)
-                st.success("비밀번호 재설정 이메일을 보냈습니다. 받은 편지함을 확인하세요.")
-            except Exception as e:
-                st.error(f"오류 발생: {e}")
+                st.success("비밀번호 재설정 이메일을 전송했습니다.")
+                time.sleep(1)
+                st.rerun()
+            except:
+                st.error("이메일 전송 실패")
 
-class Home:
-    # ... (기존 Home 클래스 코드 유지)
-    def __init__(self, login_page, register_page, find_pw_page):
-        self.login_page = login_page
-        self.register_page = register_page
-        self.find_pw_page = find_pw_page
-        
-    def run(self):
-        st.set_page_config(page_title="홈", layout="wide")
-        st.title("Streamlit EDA 앱")
-        st.write(f"안녕하세요, {st.session_state.get('user_name', '방문자')}님!")
-        st.markdown("---")
-        st.write("왼쪽 사이드바에서 메뉴를 선택하여 앱의 다른 기능들을 이용할 수 있습니다.")
-        st.info("이 앱은 Streamlit을 사용하여 제작된 EDA(탐색적 데이터 분석) 플랫폼입니다.")
-
+# ---------------------
+# 사용자 정보 수정 페이지 클래스
+# ---------------------
 class UserInfo:
-    # ... (기존 UserInfo 클래스 코드 유지)
-    def run(self):
-        st.set_page_config(page_title="내 정보", layout="centered")
-        st.title("내 정보")
-        st.write(f"이름: {st.session_state.user_name}")
-        st.write(f"이메일: {st.session_state.user_email}")
+    def __init__(self):
+        st.title("👤 사용자 정보")
 
+        email = st.session_state.get("user_email", "")
+        new_email = st.text_input("이메일", value=email)
+        name = st.text_input("성명", value=st.session_state.get("user_name", ""))
+        gender = st.selectbox(
+            "성별",
+            ["선택 안함", "남성", "여성"],
+            index=["선택 안함", "남성", "여성"].index(st.session_state.get("user_gender", "선택 안함"))
+        )
+        phone = st.text_input("휴대전화번호", value=st.session_state.get("user_phone", ""))
+
+        uploaded_file = st.file_uploader("프로필 이미지 업로드", type=["jpg", "jpeg", "png"])
+        if uploaded_file:
+            file_path = f"profiles/{email.replace('.', '_')}.jpg"
+            storage.child(file_path).put(uploaded_file, st.session_state.id_token)
+            image_url = storage.child(file_path).get_url(st.session_state.id_token)
+            st.session_state.profile_image_url = image_url
+            st.image(image_url, width=150)
+        elif st.session_state.get("profile_image_url"):
+            st.image(st.session_state.profile_image_url, width=150)
+
+        if st.button("수정"):
+            st.session_state.user_email = new_email
+            st.session_state.user_name = name
+            st.session_state.user_gender = gender
+            st.session_state.user_phone = phone
+
+            firestore.child("users").child(new_email.replace(".", "_")).update({
+                "email": new_email,
+                "name": name,
+                "gender": gender,
+                "phone": phone,
+                "profile_image_url": st.session_state.get("profile_image_url", "")
+            })
+
+            st.success("사용자 정보가 저장되었습니다.")
+            time.sleep(1)
+            st.rerun()
+
+# ---------------------
+# 로그아웃 페이지 클래스
+# ---------------------
 class Logout:
-    # ... (기존 Logout 클래스 코드 유지)
-    def run(self):
-        if st.session_state.logged_in:
-            st.session_state.logged_in = False
-            st.session_state.user_email = ""
-            st.session_state.user_name = ""
-        st.success("로그아웃되었습니다.")
+    def __init__(self):
+        st.session_state.logged_in = False
+        st.session_state.user_email = ""
+        st.session_state.id_token = ""
+        st.session_state.user_name = ""
+        st.session_state.user_gender = "선택 안함"
+        st.session_state.user_phone = ""
+        st.session_state.profile_image_url = ""
+        st.success("로그아웃 되었습니다.")
         time.sleep(1)
-        st.switch_page("home")
+        st.rerun()
 
-# --------------------
+# ---------------------
+# EDA 페이지 클래스
+# ---------------------
+class EDA:
+    def __init__(self):
+        st.title("📊 Bike Sharing Demand EDA")
+        uploaded = st.file_uploader("데이터셋 업로드 (train.csv)", type="csv")
+        if not uploaded:
+            st.info("train.csv 파일을 업로드 해주세요.")
+            return
+
+        df = pd.read_csv(uploaded, parse_dates=['datetime'])
+
+        tabs = st.tabs([
+            "1. 목적 & 절차",
+            "2. 데이터셋 설명",
+            "3. 데이터 로드 & 품질 체크",
+            "4. Datetime 특성 추출",
+            "5. 시각화",
+            "6. 상관관계 분석",
+            "7. 이상치 제거",
+            "8. 로그 변환"
+        ])
+
+        # 1. 목적 & 분석 절차
+        with tabs[0]:
+            st.header("🔭 목적 & 분석 절차")
+            st.markdown("""
+            **목적**: Bike Sharing Demand 데이터셋을 탐색하고,
+            다양한 특성이 대여량(count)에 미치는 영향을 파악합니다.
+
+            **절차**:
+            1. 데이터 구조 및 기초 통계 확인  
+            2. 결측치/중복치 등 품질 체크  
+            3. datetime 특성(연도, 월, 일, 시, 요일) 추출  
+            4. 주요 변수 시각화  
+            5. 변수 간 상관관계 분석  
+            6. 이상치 탐지 및 제거  
+            7. 로그 변환을 통한 분포 안정화
+            """)
+
+        # 2. 데이터셋 설명
+        with tabs[1]:
+            st.header("🔍 데이터셋 설명")
+            st.markdown(f"""
+            - **train.csv**: 2011–2012년까지의 시간대별 대여 기록  
+            - 총 관측치: {df.shape[0]}개  
+            - 주요 변수:
+              - **datetime**: 날짜와 시간 (YYYY-MM-DD HH:MM:SS)  
+              - **season**: 계절 (1: 봄, 2: 여름, 3: 가을, 4: 겨울)  
+              - **holiday**: 공휴일 여부 (0: 평일, 1: 공휴일)  
+              - **workingday**: 근무일 여부 (0: 주말/공휴일, 1: 근무일)  
+              - **weather**: 날씨 상태  
+                - 1: 맑음·부분적으로 흐림  
+                - 2: 안개·흐림  
+                - 3: 가벼운 비/눈  
+                - 4: 폭우/폭설 등  
+              - **temp**: 실제 기온 (섭씨)  
+              - **atemp**: 체감 온도 (섭씨)  
+              - **humidity**: 상대 습도 (%)  
+              - **windspeed**: 풍속 (정규화된 값)  
+              - **casual**: 비등록 사용자 대여 횟수  
+              - **registered**: 등록 사용자 대여 횟수  
+              - **count**: 전체 대여 횟수 (casual + registered)
+            """)
+
+            st.subheader("1) 데이터 구조 (`df.info()`)")
+            buffer = io.StringIO()
+            df.info(buf=buffer)
+            st.text(buffer.getvalue())
+
+            st.subheader("2) 기초 통계량 (`df.describe()`)")
+            numeric_df = df.select_dtypes(include=[np.number])
+            st.dataframe(numeric_df.describe())
+
+            st.subheader("3) 샘플 데이터 (첫 5행)")
+            st.dataframe(df.head())
+
+        # 3. 데이터 로드 & 품질 체크
+        with tabs[2]:
+            st.header("📥 데이터 로드 & 품질 체크")
+            st.subheader("결측값 개수")
+            missing = df.isnull().sum()
+            st.bar_chart(missing)
+
+            duplicates = df.duplicated().sum()
+            st.write(f"- 중복 행 개수: {duplicates}개")
+
+        # 4. Datetime 특성 추출
+        with tabs[3]:
+            st.header("🕒 Datetime 특성 추출")
+            st.markdown("`datetime` 컬럼에서 연, 월, 일, 시, 요일 등을 추출합니다.")
+
+            df['year'] = df['datetime'].dt.year
+            df['month'] = df['datetime'].dt.month
+            df['day'] = df['datetime'].dt.day
+            df['hour'] = df['datetime'].dt.hour
+            df['dayofweek'] = df['datetime'].dt.dayofweek
+
+            st.subheader("추출된 특성 예시")
+            st.dataframe(df[['datetime', 'year', 'month', 'day', 'hour',
+                             'dayofweek']].head())
+
+            # --- 요일 숫자 → 요일명 매핑 (참고용) ---
+            day_map = {
+                0: '월요일',
+                1: '화요일',
+                2: '수요일',
+                3: '목요일',
+                4: '금요일',
+                5: '토요일',
+                6: '일요일'
+            }
+            st.markdown("**(참고) dayofweek 숫자 → 요일**")
+            # 중복 제거 후 정렬하여 표시
+            mapping_df = pd.DataFrame({
+                'dayofweek': list(day_map.keys()),
+                'weekday': list(day_map.values())
+            })
+            st.dataframe(mapping_df, hide_index=True)
+
+        # 5. 시각화
+        with tabs[4]:
+            st.header("📈 시각화")
+            # by 근무일 여부
+            st.subheader("근무일 여부별 시간대별 평균 대여량")
+            fig1, ax1 = plt.subplots()
+            sns.pointplot(x='hour', y='count', hue='workingday', data=df,
+                          ax=ax1)
+            ax1.set_xlabel("Hour");
+            ax1.set_ylabel("Average Count")
+            st.pyplot(fig1)
+            st.markdown(
+                "> **해석:** 근무일(1)은 출퇴근 시간(7 ~ 9시, 17 ~ 19시)에 대여량이 급증하는 반면,\n"
+                "비근무일(0)은 오후(11 ~ 15시) 시간대에 대여량이 상대적으로 높게 나타납니다."
+            )
+
+            # by 요일
+            st.subheader("요일별 시간대별 평균 대여량")
+            fig2, ax2 = plt.subplots()
+            sns.pointplot(x='hour', y='count', hue='dayofweek', data=df, ax=ax2)
+            ax2.set_xlabel("Hour");
+            ax2.set_ylabel("Average Count")
+            st.pyplot(fig2)
+            st.markdown(
+                "> **해석:** 평일(월 ~ 금)은 출퇴근 피크가 두드러지고,\n"
+                "주말(토~일)은 오전 중반(10 ~ 14시)에 대여량이 더 고르게 분포하는 경향이 있습니다."
+            )
+
+            # by 시즌
+            st.subheader("시즌별 시간대별 평균 대여량")
+            fig3, ax3 = plt.subplots()
+            sns.pointplot(x='hour', y='count', hue='season', data=df, ax=ax3)
+            ax3.set_xlabel("Hour");
+            ax3.set_ylabel("Average Count")
+            st.pyplot(fig3)
+            st.markdown(
+                "> **해석:** 여름(2)과 가을(3)에 전반적으로 대여량이 높고,\n"
+                "겨울(4)은 전 시간대에 걸쳐 대여량이 낮게 나타납니다."
+            )
+
+            # by 날씨
+            st.subheader("날씨 상태별 시간대별 평균 대여량")
+            fig4, ax4 = plt.subplots()
+            sns.pointplot(x='hour', y='count', hue='weather', data=df, ax=ax4)
+            ax4.set_xlabel("Hour");
+            ax4.set_ylabel("Average Count")
+            st.pyplot(fig4)
+            st.markdown(
+                "> **해석:** 맑음(1)은 전 시간대에서 대여량이 가장 높으며,\n"
+                "안개·흐림(2), 가벼운 비/눈(3)에선 다소 감소하고, 심한 기상(4)에서는 크게 떨어집니다."
+            )
+
+        # 6. 상관관계 분석
+        with tabs[5]:
+            st.header("🔗 상관관계 분석")
+            # 관심 피처만 선택
+            features = ['temp', 'atemp', 'casual', 'registered', 'humidity',
+                        'windspeed', 'count']
+            corr_df = df[features].corr()
+
+            # 상관계수 테이블 출력
+            st.subheader("📊 피처 간 상관계수")
+            st.dataframe(corr_df)
+
+            # 히트맵 시각화
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.heatmap(corr_df, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
+            ax.set_xlabel("")  # 축 이름 제거
+            ax.set_ylabel("")
+            st.pyplot(fig)
+            st.markdown(
+                "> **해석:**\n"
+                "- `count`는 `registered` (r≈0.99) 및 `casual` (r≈0.67)와 강한 양의 상관관계를 보입니다.\n"
+                "- `temp`·`atemp`와 `count`는 중간 정도의 양의 상관관계(r≈0.4~0.5)를 나타내며, 기온이 높을수록 대여량이 증가함을 시사합니다.\n"
+                "- `humidity`와 `windspeed`는 약한 음의 상관관계(r≈-0.2~-0.3)를 보여, 습도·풍속이 높을수록 대여량이 다소 감소합니다."
+            )
+
+        # 7. 이상치 제거
+        with tabs[6]:
+            st.header("🚫 이상치 제거")
+            # 평균·표준편차 계산
+            mean_count = df['count'].mean()
+            std_count = df['count'].std()
+            # 상한치: 평균 + 3*표준편차
+            upper = mean_count + 3 * std_count
+
+            st.markdown(f"""
+                        - **평균(count)**: {mean_count:.2f}  
+                        - **표준편차(count)**: {std_count:.2f}  
+                        - **이상치 기준**: `count` > 평균 + 3×표준편차 = {upper:.2f}  
+                          (통계학의 68-95-99.7 법칙(Empirical rule)에 따라 평균에서 3σ를 벗어나는 관측치는 전체의 약 0.3%로 극단치로 간주)
+                        """)
+            df_no = df[df['count'] <= upper]
+            st.write(f"- 이상치 제거 전: {df.shape[0]}개, 제거 후: {df_no.shape[0]}개")
+
+        # 8. 로그 변환
+        with tabs[7]:
+            st.header("🔄 로그 변환")
+            st.markdown("""
+                **로그 변환 맥락**  
+                - `count` 변수는 오른쪽으로 크게 치우친 분포(skewed distribution)를 가지고 있어,  
+                  통계 분석 및 모델링 시 정규성 가정이 어렵습니다.  
+                - 따라서 `Log(Count + 1)` 변환을 통해 분포의 왜도를 줄이고,  
+                  중앙값 주변으로 데이터를 모아 해석력을 높입니다.
+                """)
+
+            # 변환 전·후 분포 비교
+            fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+
+            # 원본 분포
+            sns.histplot(df['count'], kde=True, ax=axes[0])
+            axes[0].set_title("Original Count Distribution")
+            axes[0].set_xlabel("Count")
+            axes[0].set_ylabel("Frequency")
+
+            # 로그 변환 분포
+            df['log_count'] = np.log1p(df['count'])
+            sns.histplot(df['log_count'], kde=True, ax=axes[1])
+            axes[1].set_title("Log(Count + 1) Distribution")
+            axes[1].set_xlabel("Log(Count + 1)")
+            axes[1].set_ylabel("Frequency")
+
+            st.pyplot(fig)
+
+            st.markdown("""
+                > **그래프 해석:**  
+                > - 왼쪽: 원본 분포는 한쪽으로 긴 꼬리를 가진 왜곡된 형태입니다.  
+                > - 오른쪽: 로그 변환 후 분포는 훨씬 균형잡힌 형태로, 중앙값 부근에 데이터가 집중됩니다.  
+                > - 극단치의 영향이 완화되어 이후 분석·모델링 안정성이 높아집니다.
+                """)
+
+
+# ---------------------
 # 페이지 객체 생성
-# --------------------
+# ---------------------
 Page_Login    = st.Page(Login,    title="Login",    icon="🔐", url_path="login")
 Page_Register = st.Page(lambda: Register(Page_Login.url_path), title="Register", icon="📝", url_path="register")
 Page_FindPW   = st.Page(FindPassword, title="Find PW", icon="🔎", url_path="find-password")
 Page_Home     = st.Page(lambda: Home(Page_Login, Page_Register, Page_FindPW), title="Home", icon="🏠", url_path="home", default=True)
 Page_User     = st.Page(UserInfo, title="My Info", icon="👤", url_path="user-info")
-Page_Logout   = st.Page(Logout, title="Logout", icon="🚪", url_path="logout")
-Page_EDA      = st.Page(EDA, title="EDA", icon="📈", url_path="eda")
+Page_Logout   = st.Page(Logout,   title="Logout",  icon="🔓", url_path="logout")
+Page_EDA      = st.Page(EDA,      title="EDA",     icon="📊", url_path="eda")
 
-# --------------------
-# 네비게이션 설정
-# --------------------
+# ---------------------
+# 네비게이션 실행
+# ---------------------
 if st.session_state.logged_in:
-    pages_for_logged_in_user = {
-        "메인 페이지": Page_Home,
-        "탐색적 데이터 분석": Page_EDA,
-        "내 정보": Page_User,
-        "로그아웃": Page_Logout
-    }
-    pg = st.navigation(pages_for_logged_in_user)
+    pages = [Page_Home, Page_User, Page_Logout, Page_EDA]
 else:
-    pages_for_guest = {
-        "메인 페이지": Page_Home,
-        "로그인": Page_Login,
-        "회원가입": Page_Register,
-        "비밀번호 찾기": Page_FindPW
-    }
-    pg = st.navigation(pages_for_guest)
+    pages = [Page_Home, Page_Login, Page_Register, Page_FindPW]
 
-# --------------------
-# 페이지 실행
-# --------------------
-pg.run()
+selected_page = st.navigation(pages)
+selected_page.run()
