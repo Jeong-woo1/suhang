@@ -202,7 +202,7 @@ class Logout:
 # ---------------------
 class EDA:
     def __init__(self):
-        st.title("📊 Bike Shang Demand EDA")
+        st.title("📊 Bike Sha Demand EDA")
         uploaded = st.file_uploader("데이터셋 업로드 (train.csv)", type="csv")
         if not uploaded:
             st.info("train.csv 파일을 업로드 해주세요.")
