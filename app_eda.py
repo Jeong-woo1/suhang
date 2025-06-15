@@ -212,12 +212,11 @@ class EDA:
         # 데이터 로드 및 전처리
         df = pd.read_csv(uploaded)
 
-        # '-' 기호를 0으로 치환
-        df.replace("-", 0, inplace=True)
-
-        # 숫자형 컬럼 안전하게 변환
+        # '-'를 0으로, 쉼표 제거 후 숫자로 변환
         numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
+        df.replace("-", 0, inplace=True)
         for col in numeric_cols:
+            df[col] = df[col].astype(str).str.replace(",", "").str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
         tabs = st.tabs([
