@@ -209,12 +209,16 @@ class EDA:
             st.info("CSV 파일을 업로드해주세요.")
             return
 
-        # 데이터 로드
+        # 데이터 로드 및 전처리
         df = pd.read_csv(uploaded)
 
-        # 기본 전처리
+        # '-' 기호를 0으로 치환
         df.replace("-", 0, inplace=True)
-        df[['인구', '출생아수(명)', '사망자수(명)']] = df[['인구', '출생아수(명)', '사망자수(명)']].astype(int)
+
+        # 숫자형 컬럼 안전하게 변환
+        numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
         tabs = st.tabs([
             "기초 통계",
@@ -242,24 +246,21 @@ class EDA:
         # 2. 연도별 추이
         with tabs[1]:
             st.subheader("📈 연도별 전국 인구 추이")
-            national = df[df['지역'] == '전국']
-            national_sorted = national.sort_values('연도')
+            national = df[df['지역'] == '전국'].sort_values('연도')
 
-            plt.figure(figsize=(10, 4))
-            plt.plot(national_sorted['연도'], national_sorted['인구'], marker='o')
-            plt.xlabel("Year")
-            plt.ylabel("Population")
-            plt.title("National Population Trend")
-            st.pyplot(plt)
+            fig, ax = plt.subplots()
+            ax.plot(national['연도'], national['인구'], marker='o', label='Observed')
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Population")
+            ax.set_title("National Population Trend")
 
-            # 예측
-            recent = national_sorted.tail(3)
-            avg_delta = (recent.iloc[-1]['인구'] - recent.iloc[0]['인구']) / 2
-            pred_2035 = national_sorted['인구'].iloc[-1] + avg_delta * (2035 - national_sorted['연도'].iloc[-1])
-
-            plt.axhline(pred_2035, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_2035):,}')
-            plt.legend()
-            st.pyplot(plt)
+            # 2035년 예측
+            recent = national.tail(3)
+            avg_delta = (recent['인구'].iloc[-1] - recent['인구'].iloc[0]) / 2
+            pred_2035 = national['인구'].iloc[-1] + avg_delta * (2035 - national['연도'].iloc[-1])
+            ax.axhline(pred_2035, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_2035):,}')
+            ax.legend()
+            st.pyplot(fig)
 
         # 3. 지역별 분석
         with tabs[2]:
@@ -273,11 +274,19 @@ class EDA:
             merged['변화량'] = merged['인구_최근'] - merged['인구_과거']
             merged = merged[merged['지역'] != '전국'].sort_values('변화량', ascending=False)
 
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize=(8, 6))
             sns.barplot(x='변화량', y='지역', data=merged, ax=ax)
             ax.set_xlabel("Change")
             ax.set_ylabel("Region")
             st.pyplot(fig)
+
+            # 변화율 추가
+            merged['변화율(%)'] = (merged['변화량'] / merged['인구_과거']) * 100
+            fig2, ax2 = plt.subplots(figsize=(8, 6))
+            sns.barplot(x='변화율(%)', y='지역', data=merged, ax=ax2)
+            ax2.set_xlabel("Rate (%)")
+            ax2.set_ylabel("Region")
+            st.pyplot(fig2)
 
         # 4. 변화량 분석
         with tabs[3]:
@@ -285,10 +294,13 @@ class EDA:
             df['증감'] = df.groupby('지역')['인구'].diff()
             diff_df = df[df['지역'] != '전국'].dropna().sort_values('증감', ascending=False).head(100)
 
-            styled_table = diff_df.style.background_gradient(
+            styled = diff_df.style.background_gradient(
                 cmap='coolwarm', subset=['증감']
-            ).format({'증감': '{:,.0f}', '인구': '{:,.0f}'})
-            st.dataframe(styled_table)
+            ).format({
+                '증감': '{:,.0f}',
+                '인구': '{:,.0f}'
+            })
+            st.dataframe(styled)
 
         # 5. 시각화
         with tabs[4]:
