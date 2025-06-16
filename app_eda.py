@@ -231,15 +231,15 @@ class EDA:
         with tabs[0]:
             st.subheader("📌 결측치 및 중복 확인")
 
-            # 복사본 생성 (원본은 나중 전처리용)
-            df_check = df.copy()
+            # 1. 복사본 사용
+        df_check = df.copy()
 
-            # '-' → NaN 처리 (문자열이므로 전체를 문자열로 변환 후 치환)
-            df_check = df_check.applymap(lambda x: np.nan if str(x).strip() == '-' or str(x).strip() == '' else x)
+        # 2. 모든 셀을 문자열로 바꾼 뒤, 공백 또는 '-'는 np.nan으로 처리
+        df_check = df_check.applymap(lambda x: np.nan if str(x).strip() in ["", "-", "NaN", "nan"] else x)
 
-            # 결측치 개수 출력
-            st.write("🔎 결측치 개수 (빈 문자열 및 '-' 포함):")
-            st.dataframe(df_check.isnull().sum())
+        # 3. 결측치 개수 출력
+        st.write("🔎 결측치 개수 (빈 문자열 및 '-' 포함):")
+        st.dataframe(df_check.isnull().sum())
 
             # 중복 행 개수 출력
             duplicated_rows = df.duplicated().sum()
