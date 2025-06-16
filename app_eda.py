@@ -228,30 +228,40 @@ class EDA:
         ])
 
         # 1. 기초 통계
-        with tabs[0]:
-            st.subheader("📌 결측치 및 중복 확인")
+        with tabs[1]:
+            st.subheader("📈 National Population Trend (with 2035 Prediction)")
 
-            # 원본에서 복사 (결측치 확인용)
-            df_check = df.copy()
+            # 전국 데이터만 필터링
+            national = df[df['지역'] == '전국'].sort_values('연도')
 
-            # 문자열로 변환 후 결측치 처리 ('-', 빈칸 포함)
-            df_check = df_check.applymap(lambda x: np.nan if str(x).strip() in ["", "-", "NaN", "nan"] else x)
+            # 연도, 인구, 출생, 사망 추출
+            years = national['연도']
+            population = national['인구']
+            births = national['출생아수(명)']
+            deaths = national['사망자수(명)']
 
-            # 결측치 개수 출력
-            st.write("🔎 결측치 개수 (빈 문자열 및 '-' 포함):")
-            st.dataframe(df_check.isnull().sum())
+            # 최근 3년 평균 자연 증가 = 출생 - 사망
+            recent = national.tail(3)
+            avg_natural_increase = (recent['출생아수(명)'] - recent['사망자수(명)']).mean()
 
-            # 중복 행 개수 출력
-            duplicated_rows = df.duplicated().sum()
-            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
+            # 예측: 마지막 인구 + (2035 - 마지막 연도) * 평균 자연증가
+            last_year = years.iloc[-1]
+            last_pop = population.iloc[-1]
+            pred_year = 2035
+            years_diff = pred_year - last_year
+            pred_pop = last_pop + avg_natural_increase * years_diff
 
-            st.subheader("📌 데이터프레임 구조")
-            buf = io.StringIO()
-            df.info(buf=buf)
-            st.text(buf.getvalue())
+            # 그래프 그리기
+            fig, ax = plt.subplots()
+            ax.plot(years, population, marker='o', label='Observed')
+            ax.axhline(pred_pop, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_pop):,}')
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Population")
+            ax.set_title("National Population Trend")
+            ax.legend()
 
-            st.subheader("📌 요약 통계량")
-            st.dataframe(df.describe())
+            st.pyplot(fig)
+
 
 
 
