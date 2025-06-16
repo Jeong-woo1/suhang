@@ -285,7 +285,6 @@ class EDA:
 
         # 2. 연도별 추이
         with tabs[1]:
-            matplotlib.rc('font', family='NanumGothic')  # 또는 'Malgun Gothic' (Windows) / 'AppleGothic' (Mac)
             st.subheader("📈 연도별 전국 인구 추이")
             national = df[df['지역'] == '전국'].sort_values('연도')
 
