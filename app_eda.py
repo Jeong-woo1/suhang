@@ -229,34 +229,30 @@ class EDA:
 
         # 1. 기초 통계
         with tabs[0]:
-            st.subheader("📌 결측치 및 중복 확인")
+            st.subheader("📌 세종 지역 전처리 및 요약 통계")
 
-            # 문자열 형태의 결측값을 NaN으로 변환 (이미 df는 "-" 등을 숫자 처리 전이므로 재처리)
-            df.replace(["-", " ", "N/A", "", "NaN"], np.nan, inplace=True)
+            # 1. '세종' 지역의 모든 열의 '-' 결측치를 0으로 처리
+            df_sejong = df[df['지역'] == '세종'].copy()
+            df_sejong.replace("-", 0, inplace=True)
 
-            # 결측치 개수 출력
-            st.write("🔎 결측치 개수:")
-            st.dataframe(df.isnull().sum())
+            # 2. 숫자형 열 처리
+            numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
+            for col in numeric_cols:
+                df_sejong[col] = df_sejong[col].astype(str).str.replace(",", "").str.strip()
+                df_sejong[col] = pd.to_numeric(df_sejong[col], errors='coerce').fillna(0).astype(int)
 
-            # 결측치가 포함된 행 미리 보기
-            if df.isnull().any().any():
-                st.subheader("⚠️ 결측치 포함된 샘플")
-                st.dataframe(df[df.isnull().any(axis=1)].head())
+            st.write("✅ '세종' 지역 전처리 완료!")
 
-            # 결측치는 0으로 채움 (EDA 오류 방지)
-            df.fillna(0, inplace=True)
+            # 3. describe 출력
+            st.subheader("📊 세종 지역 요약 통계 (df.describe())")
+            st.dataframe(df_sejong.describe())
 
-            # 중복 행 개수 출력
-            duplicated_rows = df.duplicated().sum()
-            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
+            # 4. info 출력
+            st.subheader("🔍 세종 지역 데이터프레임 구조 (df.info())")
+            buffer = io.StringIO()
+            df_sejong.info(buf=buffer)
+            st.text(buffer.getvalue())
 
-            st.subheader("📌 데이터프레임 구조")
-            buf = io.StringIO()
-            df.info(buf=buf)
-            st.text(buf.getvalue())
-
-            st.subheader("📌 요약 통계량")
-            st.dataframe(df.describe())
 
 
 
