@@ -248,30 +248,36 @@ class EDA:
             last_year = years[-1]
             last_pop = population[-1]
 
-            future_years = list(range(last_year + 1, 2037, 2))
+            future_years = list(range(last_year + 2, 2037, 2))  # 2024부터 시작
             future_pops = []
 
-            current_pop = last_pop
+            # 첫 예측값 (2024)을 별도로 계산하여 연결용으로 사용
+            pop_2024 = last_pop + avg_natural_increase * 2
+            current_pop = pop_2024
+
             for year in future_years:
-                current_pop += avg_natural_increase * 2  # 2년 단위 증가
+                current_pop += avg_natural_increase * 2
                 future_pops.append(current_pop)
 
-            # 전체 선 이어 붙이기
-            full_years = years + future_years
-            full_pops = population + future_pops
-
-            # 그래프 그리기
             fig, ax = plt.subplots()
+
             # 실제 관측값: 실선
             ax.plot(years, population, marker='o', label='Observed', color='blue')
-            # 예측값: 점선
-            ax.plot(future_years, future_pops, marker='o', linestyle='--', color='red', label='Predicted')
+
+            # 2022-2024 연결: 점선
+            ax.plot([last_year, 2024], [last_pop, pop_2024], linestyle='--', color='red')
+
+            # 이후 예측값 (2024 제외): 점선
+            future_plot_years = [2024] + future_years
+            future_plot_pops = [pop_2024] + future_pops
+            ax.plot(future_plot_years, future_plot_pops, marker='o', linestyle='--', color='red', label='Predicted')
 
             ax.set_xlabel("Year")
             ax.set_ylabel("Population")
             ax.set_title("National Population Trend")
             ax.legend()
             st.pyplot(fig)
+
 
 
 
