@@ -231,15 +231,15 @@ class EDA:
         with tabs[0]:
             st.subheader("📌 결측치 및 중복 확인")
 
-            # 문자열 '-'를 결측치로 간주
-            df.replace("-", np.nan, inplace=True)
+            # 복사본 생성 (원본은 나중 전처리용)
+            df_check = df.copy()
+
+            # '-' → NaN 처리 (문자열이므로 전체를 문자열로 변환 후 치환)
+            df_check = df_check.applymap(lambda x: np.nan if str(x).strip() == '-' or str(x).strip() == '' else x)
 
             # 결측치 개수 출력
-            st.write("🔎 결측치 개수 (NaN + '-') 포함:")
-            st.dataframe(df.isnull().sum())
-
-            # 결측치 0으로 채움 (이후 처리에 영향 없도록)
-            df.fillna(0, inplace=True)
+            st.write("🔎 결측치 개수 (빈 문자열 및 '-' 포함):")
+            st.dataframe(df_check.isnull().sum())
 
             # 중복 행 개수 출력
             duplicated_rows = df.duplicated().sum()
@@ -252,6 +252,7 @@ class EDA:
 
             st.subheader("📌 요약 통계량")
             st.dataframe(df.describe())
+
 
         # 2. 연도별 추이
         with tabs[1]:
