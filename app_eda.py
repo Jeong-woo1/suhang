@@ -201,236 +201,119 @@ class Logout:
 # EDA 페이지 클래스
 # ---------------------
 class EDA:
-    """탐색적 데이터 분석 페이지를 위한 클래스"""
-    def run(self):
-        st.title("📊 탐색적 데이터 분석 (EDA)")
-        st.write("---")
+    def __init__(self):
+        st.title("📊 인구 데이터 EDA")
 
-        # 두 개의 분석을 위한 탭 생성
-        tab_bike, tab_population = st.tabs(["🚲 자전거 수요 예측 분석", "👨‍👩‍👧‍👦 지역별 인구 분석"])
+        uploaded = st.file_uploader("population_trends.csv 파일 업로드", type="csv")
+        if not uploaded:
+            st.info("CSV 파일을 업로드해주세요.")
+            return
 
-        # =====================================================================
-        # 자전거 수요 예측 분석 탭
-        # =====================================================================
-        with tab_bike:
-            st.header("📁 파일 업로드")
-            uploaded_file = st.file_uploader("분석할 CSV 파일을 업로드하세요 (예: bike.csv).", type=['csv'], key="bike_uploader")
+        # 데이터 로드 및 전처리
+        df = pd.read_csv(uploaded)
 
-            if uploaded_file is not None:
-                try:
-                    df = pd.read_csv(uploaded_file)
-                    st.success("파일이 성공적으로 업로드되었습니다.")
+        # '-'를 0으로, 쉼표 제거 후 숫자로 변환
+        numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
+        df.replace("-", 0, inplace=True)
+        for col in numeric_cols:
+            df[col] = df[col].astype(str).str.replace(",", "").str.strip()
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
-                    st.subheader("데이터 미리보기")
-                    st.dataframe(df.head())
+        tabs = st.tabs([
+            "기초 통계",
+            "연도별 추이",
+            "지역별 분석",
+            "변화량 분석",
+            "시각화"
+        ])
 
-                    st.subheader("데이터 기본 정보")
-                    buffer = io.StringIO()
-                    df.info(buf=buffer)
-                    s = buffer.getvalue()
-                    st.text(s)
+        # 1. 기초 통계
+        with tabs[0]:
+            st.subheader("📌 결측치 및 중복 확인")
+            st.write("결측치 개수:")
+            st.dataframe(df.isnull().sum())
+            st.write(f"중복 행 개수: {df.duplicated().sum()}개")
 
-                    st.subheader("결측치 확인")
-                    st.dataframe(df.isnull().sum().to_frame('결측치 개수'))
+            st.subheader("📌 데이터프레임 구조")
+            buf = io.StringIO()
+            df.info(buf=buf)
+            st.text(buf.getvalue())
 
-                    st.subheader("기술 통계량")
-                    st.dataframe(df.describe())
+            st.subheader("📌 요약 통계량")
+            st.dataframe(df.describe())
 
-                    st.header("📈 데이터 시각화")
+        # 2. 연도별 추이
+        with tabs[1]:
+            st.subheader("📈 연도별 전국 인구 추이")
+            national = df[df['지역'] == '전국'].sort_values('연도')
 
-                    st.subheader("시간에 따른 자전거 대여량")
-                    df['datetime'] = pd.to_datetime(df['datetime'])
-                    df['year'] = df['datetime'].dt.year
-                    df['month'] = df['datetime'].dt.month
-                    df['day'] = df['datetime'].dt.day
-                    df['hour'] = df['datetime'].dt.hour
-                    
-                    hourly_counts = df.groupby('hour')['count'].mean()
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    hourly_counts.plot(kind='bar', ax=ax, color='skyblue')
-                    ax.set_title('시간대별 평균 자전거 대여량')
-                    ax.set_xlabel('시간')
-                    ax.set_ylabel('평균 대여량')
-                    ax.tick_params(axis='x', rotation=0)
-                    st.pyplot(fig)
+            fig, ax = plt.subplots()
+            ax.plot(national['연도'], national['인구'], marker='o', label='Observed')
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Population")
+            ax.set_title("National Population Trend")
 
-                    st.subheader("이상치(Outlier) 탐지: Box Plot")
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    sns.boxplot(data=df, y='count', ax=ax)
-                    ax.set_title('자전거 대여량(count)의 Box Plot')
-                    ax.set_ylabel('대여량')
-                    st.pyplot(fig)
+            # 2035년 예측
+            recent = national.tail(3)
+            avg_delta = (recent['인구'].iloc[-1] - recent['인구'].iloc[0]) / 2
+            pred_2035 = national['인구'].iloc[-1] + avg_delta * (2035 - national['연도'].iloc[-1])
+            ax.axhline(pred_2035, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_2035):,}')
+            ax.legend()
+            st.pyplot(fig)
 
-                    st.subheader("데이터 분포 변환: 로그 변환")
-                    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-                    sns.histplot(df['count'], kde=True, ax=axes[0])
-                    axes[0].set_title("Original Count Distribution")
-                    axes[0].set_xlabel("Count")
-                    axes[0].set_ylabel("Frequency")
+        # 3. 지역별 분석
+        with tabs[2]:
+            st.subheader("🏙️ 최근 5년간 지역별 인구 변화량")
+            latest_year = df['연도'].max()
+            past_year = latest_year - 5
+            df_latest = df[df['연도'] == latest_year]
+            df_past = df[df['연도'] == past_year]
 
-                    df['log_count'] = np.log1p(df['count'])
-                    sns.histplot(df['log_count'], kde=True, ax=axes[1])
-                    axes[1].set_title("Log(Count + 1) Distribution")
-                    axes[1].set_xlabel("Log(Count + 1)")
-                    axes[1].set_ylabel("Frequency")
+            merged = pd.merge(df_latest, df_past, on='지역', suffixes=('_최근', '_과거'))
+            merged['변화량'] = merged['인구_최근'] - merged['인구_과거']
+            merged = merged[merged['지역'] != '전국'].sort_values('변화량', ascending=False)
 
-                    st.pyplot(fig)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.barplot(x='변화량', y='지역', data=merged, ax=ax)
+            ax.set_xlabel("Change")
+            ax.set_ylabel("Region")
+            st.pyplot(fig)
 
-                    st.markdown("""
-                        > **그래프 해석:** > - 왼쪽: 원본 분포는 한쪽으로 긴 꼬리를 가진 왜곡된 형태입니다.  
-                        > - 오른쪽: 로그 변환 후 분포는 훨씬 균형잡힌 형태로, 중앙값 부근에 데이터가 집중됩니다.  
-                        > - 극단치의 영향이 완화되어 이후 분석·모델링 안정성이 높아집니다.
-                        """)
-                except Exception as e:
-                    st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
+            # 변화율 추가
+            merged['변화율(%)'] = (merged['변화량'] / merged['인구_과거']) * 100
+            fig2, ax2 = plt.subplots(figsize=(8, 6))
+            sns.barplot(x='변화율(%)', y='지역', data=merged, ax=ax2)
+            ax2.set_xlabel("Rate (%)")
+            ax2.set_ylabel("Region")
+            st.pyplot(fig2)
 
-        # =====================================================================
-        # 지역별 인구 분석 탭 (과제 수행 부분)
-        # =====================================================================
-        with tab_population:
-            st.header("📁 population_trends.csv 파일 업로드")
-            uploaded_pop_file = st.file_uploader("population_trends.csv 파일을 업로드하세요.", type=['csv'], key="population_uploader")
+        # 4. 변화량 분석
+        with tabs[3]:
+            st.subheader("📊 연도별 인구 증감률 상위 지역")
+            df['증감'] = df.groupby('지역')['인구'].diff()
+            diff_df = df[df['지역'] != '전국'].dropna().sort_values('증감', ascending=False).head(100)
 
-            if uploaded_pop_file is not None:
-                try:
-                    df_pop = pd.read_csv(uploaded_pop_file)
-                    st.success("인구 데이터 파일이 성공적으로 업로드되었습니다.")
-                    
-                    # --- 데이터 전처리 (과제 요구사항) ---
-                    st.write("#### ✨ 데이터 전처리")
-                    with st.expander("전처리 과정 보기"):
-                        st.write("1. 컬럼명을 영문으로 변경합니다: '연도'->'Year', '지역'->'Region', '총인구수'->'Population'")
-                        df_pop.rename(columns={'연도': 'Year', '지역': 'Region', '총인구수': 'Population'}, inplace=True)
-                        
-                        st.write("2. '세종' 지역의 결측치를 이전 연도의 값으로 채웁니다. (Forward Fill)")
-                        df_pop.sort_values(by=['Region', 'Year'], inplace=True)
-                        df_pop['Population'] = df_pop.groupby('Region')['Population'].transform(lambda x: x.ffill())
-                        
-                        st.write("3. 전처리 후 남은 결측치가 있는 행을 제거하고, 인구수 데이터를 정수형으로 변환합니다.")
-                        df_pop.dropna(inplace=True)
-                        df_pop['Population'] = df_pop['Population'].astype(int)
-                        st.write("전처리가 완료되었습니다.")
+            styled = diff_df.style.background_gradient(
+                cmap='coolwarm', subset=['증감']
+            ).format({
+                '증감': '{:,.0f}',
+                '인구': '{:,.0f}'
+            })
+            st.dataframe(styled)
 
-                    # --- 분석 탭 구성 (과제 요구사항) ---
-                    stat_tab, yearly_tab, regional_tab, change_tab, viz_tab = st.tabs([
-                        "기초 통계", "연도별 추이", "지역별 분석", "변화량 분석", "시각화"
-                    ])
+        # 5. 시각화
+        with tabs[4]:
+            st.subheader("📊 지역별 연도별 인구 누적영역그래프")
+            pivot_df = df.pivot(index='연도', columns='지역', values='인구')
+            pivot_df = pivot_df.drop(columns='전국', errors='ignore')
 
-                    with stat_tab:
-                        st.subheader("기초 통계 분석")
-                        st.write("##### 📊 데이터 샘플")
-                        st.dataframe(df_pop.head())
+            fig, ax = plt.subplots(figsize=(10, 6))
+            pivot_df.plot.area(ax=ax)
+            ax.set_title("Population Area Chart")
+            ax.set_xlabel("Year")
+            ax.set_ylabel("Population")
+            st.pyplot(fig)
 
-                        st.write("##### 🔢 기술 통계")
-                        st.dataframe(df_pop.describe())
-
-                        st.write("##### ❓ 결측치 확인")
-                        st.dataframe(df_pop.isnull().sum().to_frame('결측치 개수'))
-
-                        st.write("##### ⛓️ 중복 데이터 확인")
-                        st.write(f"중복된 행의 개수: {df_pop.duplicated().sum()} 개")
-
-                    with yearly_tab:
-                        st.subheader("연도별 전체 인구 추이")
-                        yearly_total_pop = df_pop.groupby('Year')['Population'].sum()
-                        st.line_chart(yearly_total_pop)
-                        with st.expander("데이터 테이블 보기"):
-                            st.dataframe(yearly_total_pop)
-
-                    with regional_tab:
-                        st.subheader("최신 연도 기준 지역별 인구수")
-                        latest_year = df_pop['Year'].max()
-                        st.write(f"기준 연도: **{latest_year}년**")
-                        
-                        latest_pop = df_pop[df_pop['Year'] == latest_year].sort_values("Population", ascending=False)
-                        
-                        fig, ax = plt.subplots(figsize=(12, 8))
-                        sns.barplot(data=latest_pop, x='Region', y='Population', ax=ax, palette='viridis')
-                        ax.set_title(f'{latest_year}년 지역별 인구수')
-                        ax.set_xlabel('지역')
-                        ax.set_ylabel('인구수 (명)')
-                        plt.xticks(rotation=45, ha='right')
-                        plt.tight_layout()
-                        st.pyplot(fig)
-                        
-                        with st.expander("데이터 테이블 보기"):
-                            st.dataframe(latest_pop.style.format({'Population': '{:,}'}))
-
-                    with change_tab:
-                        st.subheader("인구 변화량 분석")
-                        
-                        # 1. 이전 연도 대비 증감 계산 (과제 프롬프트 예시 구현)
-                        st.write("##### 📈 이전 연도 대비 인구 증감 Top 100")
-                        st.info("각 지역의 이전 연도 대비 인구 증감량을 계산하여 상위 100개 사례를 보여줍니다.")
-                        df_pop.sort_values(by=['Region', 'Year'], inplace=True)
-                        df_pop['증감'] = df_pop.groupby('Region')['Population'].diff()
-                        
-                        top_100_changes = df_pop.dropna(subset=['증감']).nlargest(100, '증감')
-                        st.dataframe(top_100_changes[['Year', 'Region', 'Population', '증감']]
-                                     .style.format({'Population': '{:,}', '증감': '{:+,}'})
-                                     .background_gradient(cmap='bwr', subset=['증감'], vmin=-top_100_changes['증감'].abs().max(), vmax=top_100_changes['증감'].abs().max())
-                                    )
-
-                        # 2. 분석 기간 전체의 인구 변화
-                        st.write("##### 📊 분석 기간 전체 인구 변화량")
-                        start_year = df_pop['Year'].min()
-                        end_year = df_pop['Year'].max()
-                        st.info(f"{start_year}년부터 {end_year}년까지의 지역별 전체 인구 변화량을 보여줍니다.")
-                        
-                        start_pop = df_pop[df_pop['Year'] == start_year].set_index('Region')['Population']
-                        end_pop = df_pop[df_pop['Year'] == end_year].set_index('Region')['Population']
-                        
-                        change_df = pd.DataFrame({
-                            f'{start_year}년 인구': start_pop,
-                            f'{end_year}년 인구': end_pop,
-                            '변화량': end_pop - start_pop
-                        }).dropna()
-                        change_df['변화량'] = change_df['변화량'].astype(int)
-                        
-                        st.dataframe(change_df.sort_values('변화량', ascending=False)
-                                     .style.format('{:,}').bar(subset=['변화량'], align='zero', color=['#d65f5f', '#5fba7d']))
-
-
-                    with viz_tab:
-                        st.subheader("누적 영역 그래프 시각화")
-                        st.info("연도에 따른 지역별 인구수 변화를 누적하여 보여줍니다. '전국' 데이터는 시각화에서 제외되었습니다.")
-                        
-                        # Pivot table 생성
-                        pivot_df = df_pop[df_pop['Region'] != '전국'].pivot_table(
-                            index='Year', columns='Region', values='Population', aggfunc='sum'
-                        )
-                        pivot_df.fillna(0, inplace=True) # 결측치는 0으로 채워서 그래프 오류 방지
-
-                        # Streamlit 내장 차트 사용
-                        st.write("##### Streamlit 내장 누적 영역 그래프")
-                        st.area_chart(pivot_df)
-
-                        # Seaborn/Matplotlib을 이용한 시각화 (과제 프롬프트 예시 구현)
-                        st.write("##### Seaborn 누적 영역 그래프")
-                        # 한글 레이블을 영문으로 변경 (선택사항, 프롬프트 예시 기반)
-                        region_map = {
-                            '서울': 'Seoul', '부산': 'Busan', '대구': 'Daegu', '인천': 'Incheon',
-                            '광주': 'Gwangju', '대전': 'Daejeon', '울산': 'Ulsan', '세종': 'Sejong',
-                            '경기': 'Gyeonggi', '강원': 'Gangwon', '충북': 'Chungbuk', '충남': 'Chungnam',
-                            '전북': 'Jeonbuk', '전남': 'Jeonnam', '경북': 'Gyeongbuk', '경남': 'Gyeongnam', '제주': 'Jeju'
-                        }
-                        pivot_df_en = pivot_df.rename(columns=region_map)
-                        
-                        fig, ax = plt.subplots(figsize=(15, 10))
-                        palette = sns.color_palette("tab20", n_colors=len(pivot_df_en.columns))
-                        
-                        ax.stackplot(pivot_df_en.index, pivot_df_en.T, labels=pivot_df_en.columns, colors=palette, alpha=0.8)
-                        
-                        ax.set_title('Population Trends by Region', fontsize=16)
-                        ax.set_xlabel('Year')
-                        ax.set_ylabel('Population')
-                        ax.legend(loc='upper left', title="Regions")
-                        plt.tight_layout()
-                        st.pyplot(fig)
-
-
-                except Exception as e:
-                    st.error(f"인구 데이터 분석 중 오류가 발생했습니다: {e}")
 
 # ---------------------
 # 페이지 객체 생성
