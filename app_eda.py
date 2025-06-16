@@ -229,38 +229,50 @@ class EDA:
 
         # 1. 기초 통계
         with tabs[1]:
-            st.subheader("📈 National Population Trend (with 2035 Prediction)")
+            st.subheader("📈 National Population Trend (with Projection to 2036)")
 
-            # 전국 데이터만 필터링
+            # 전국 데이터 필터링
             national = df[df['지역'] == '전국'].sort_values('연도')
 
-            # 연도, 인구, 출생, 사망 추출
-            years = national['연도']
-            population = national['인구']
-            births = national['출생아수(명)']
-            deaths = national['사망자수(명)']
+            # 연도, 인구, 출생, 사망
+            years = national['연도'].tolist()
+            population = national['인구'].tolist()
+            births = national['출생아수(명)'].tolist()
+            deaths = national['사망자수(명)'].tolist()
 
-            # 최근 3년 평균 자연 증가 = 출생 - 사망
+            # 최근 3년 평균 자연 증가 계산
             recent = national.tail(3)
             avg_natural_increase = (recent['출생아수(명)'] - recent['사망자수(명)']).mean()
 
-            # 예측: 마지막 인구 + (2035 - 마지막 연도) * 평균 자연증가
-            last_year = years.iloc[-1]
-            last_pop = population.iloc[-1]
-            pred_year = 2035
-            years_diff = pred_year - last_year
-            pred_pop = last_pop + avg_natural_increase * years_diff
+            # 예측값 생성: 2024 ~ 2036 (2년 간격)
+            last_year = years[-1]
+            last_pop = population[-1]
+
+            future_years = list(range(last_year + 1, 2037, 2))
+            future_pops = []
+
+            current_pop = last_pop
+            for year in future_years:
+                current_pop += avg_natural_increase * 2  # 2년 단위 증가
+                future_pops.append(current_pop)
+
+            # 전체 선 이어 붙이기
+            full_years = years + future_years
+            full_pops = population + future_pops
 
             # 그래프 그리기
             fig, ax = plt.subplots()
-            ax.plot(years, population, marker='o', label='Observed')
-            ax.axhline(pred_pop, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_pop):,}')
+            # 실제 관측값: 실선
+            ax.plot(years, population, marker='o', label='Observed', color='blue')
+            # 예측값: 점선
+            ax.plot(future_years, future_pops, marker='o', linestyle='--', color='red', label='Predicted')
+
             ax.set_xlabel("Year")
             ax.set_ylabel("Population")
             ax.set_title("National Population Trend")
             ax.legend()
-
             st.pyplot(fig)
+
 
 
 
