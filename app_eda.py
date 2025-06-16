@@ -361,16 +361,19 @@ class EDA:
 
         # 5. 시각화
         with tabs[4]:
-            st.subheader("📊 지역별 연도별 인구 누적영역그래프")
+            st.subheader("📊 Stacked Area Chart of Population by Region")
+
+            # 지역명이 영어로 바뀌었을 것으로 가정
             pivot_df = df.pivot(index='연도', columns='지역', values='인구')
-            pivot_df = pivot_df.drop(columns='전국', errors='ignore')
+            pivot_df = pivot_df.drop(columns='National', errors='ignore')
 
             fig, ax = plt.subplots(figsize=(10, 6))
-            pivot_df.plot.area(ax=ax)
-            ax.set_title("Population Area Chart")
+            pivot_df.plot.area(ax=ax, cmap="tab20")
+            ax.set_title("Population Area Chart by Region")
             ax.set_xlabel("Year")
             ax.set_ylabel("Population")
             st.pyplot(fig)
+
 
 
 # ---------------------
