@@ -228,11 +228,23 @@ class EDA:
         ])
 
         # 1. 기초 통계
+        # 1. 기초 통계
         with tabs[0]:
             st.subheader("📌 결측치 및 중복 확인")
-            st.write("결측치 개수:")
+
+            # 문자열 '-'를 결측치로 간주
+            df.replace("-", np.nan, inplace=True)
+
+            # 결측치 개수 출력
+            st.write("🔎 결측치 개수 (NaN + '-') 포함:")
             st.dataframe(df.isnull().sum())
-            st.write(f"중복 행 개수: {df.duplicated().sum()}개")
+
+            # 결측치 0으로 채움 (이후 처리에 영향 없도록)
+            df.fillna(0, inplace=True)
+
+            # 중복 행 개수 출력
+            duplicated_rows = df.duplicated().sum()
+            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
 
             st.subheader("📌 데이터프레임 구조")
             buf = io.StringIO()
