@@ -228,6 +228,7 @@ class EDA:
         ])
 
         # 1. 기초 통계
+        with tabs[0]:
             st.subheader("📌 결측치 및 중복 확인")
 
             # 문자열 '-'를 결측치로 간주
