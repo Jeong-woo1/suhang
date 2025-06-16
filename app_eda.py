@@ -229,34 +229,49 @@ class EDA:
 
         # 1. 기초 통계
         with tabs[0]:
-            st.subheader("📌 결측치 및 중복 확인")
+            st.subheader("📌 Missing & Duplicate Check")
 
-            # 문자열 형태의 결측값을 NaN으로 변환 (이미 df는 "-" 등을 숫자 처리 전이므로 재처리)
-            df.replace(["-", " ", "N/A", "", "NaN"], np.nan, inplace=True)
+            # '-' 또는 빈 문자열도 결측값으로 간주
+            st.markdown("### 🔎 Missing Value Summary")
 
-            # 결측치 개수 출력
-            st.write("🔎 결측치 개수:")
-            st.dataframe(df.isnull().sum())
+            # 각 컬럼에 대해 결측값 개수 계산
+            missing_counts = pd.DataFrame({
+                'NaN': df.isna().sum(),
+                "'-'": (df == '-').sum(),
+                "'' (empty)": (df == '').sum()
+            })
 
-            # 결측치가 포함된 행 미리 보기
-            if df.isnull().any().any():
-                st.subheader("⚠️ 결측치 포함된 샘플")
-                st.dataframe(df[df.isnull().any(axis=1)].head())
+            # 총 결측치 수 계산
+            missing_counts['Total'] = missing_counts.sum(axis=1)
 
-            # 결측치는 0으로 채움 (EDA 오류 방지)
-            df.fillna(0, inplace=True)
+            # 결측치 존재하는 컬럼만 표시
+            st.dataframe(missing_counts[missing_counts['Total'] > 0] if missing_counts['Total'].sum() > 0 else "✅ No missing values detected (NaN / '-' / '').")
+
+            st.markdown("---")
 
             # 중복 행 개수 출력
+            st.markdown("### 📄 Duplicate Rows")
             duplicated_rows = df.duplicated().sum()
-            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
+            st.write(f"Total duplicate rows: **{duplicated_rows}**")
 
-            st.subheader("📌 데이터프레임 구조")
+            st.markdown("---")
+
+            # 데이터프레임 구조 출력
+            st.subheader("📌 Data Structure Info")
             buf = io.StringIO()
             df.info(buf=buf)
             st.text(buf.getvalue())
 
-            st.subheader("📌 요약 통계량")
-            st.dataframe(df.describe())
+            st.markdown("---")
+
+            # 수치형 컬럼에 대한 요약 통계량
+            st.subheader("📌 Descriptive Statistics")
+            numeric_df = df.select_dtypes(include=[np.number])
+            if not numeric_df.empty:
+                st.dataframe(numeric_df.describe())
+            else:
+                st.write("No numeric columns available for summary.")
+
 
 
 
