@@ -363,16 +363,24 @@ class EDA:
         with tabs[4]:
             st.subheader("📊 Stacked Area Chart of Population by Region")
 
-            # 지역명이 영어로 바뀌었을 것으로 가정
+            # 지역명이 영어로 되어 있다고 가정
             pivot_df = df.pivot(index='연도', columns='지역', values='인구')
             pivot_df = pivot_df.drop(columns='National', errors='ignore')
 
             fig, ax = plt.subplots(figsize=(10, 6))
             pivot_df.plot.area(ax=ax, cmap="tab20")
+
             ax.set_title("Population Area Chart by Region")
             ax.set_xlabel("Year")
             ax.set_ylabel("Population")
+
+            # 범례 오른쪽에 배치
+            ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), title="Region")
+
+            # 여백 자동 조절
+            fig.tight_layout()
             st.pyplot(fig)
+
 
 
 
