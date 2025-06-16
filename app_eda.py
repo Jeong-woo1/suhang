@@ -229,29 +229,41 @@ class EDA:
 
         # 1. 기초 통계
         with tabs[0]:
-            st.subheader("📌 세종 지역 전처리 및 요약 통계")
+            st.subheader("📌 지역별 전처리 보기")
 
-            # 1. '세종' 지역의 모든 열의 '-' 결측치를 0으로 처리
-            df_sejong = df[df['지역'] == '세종'].copy()
-            df_sejong.replace("-", 0, inplace=True)
+            # 지역 리스트 추출 및 선택
+            regions = sorted(df['지역'].unique())
+            selected_region = st.selectbox("🔽 전처리할 지역 선택", regions)
 
-            # 2. 숫자형 열 처리
-            numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
-            for col in numeric_cols:
-                df_sejong[col] = df_sejong[col].astype(str).str.replace(",", "").str.strip()
-                df_sejong[col] = pd.to_numeric(df_sejong[col], errors='coerce').fillna(0).astype(int)
+            if selected_region:
+                st.info(f"🔍 **{selected_region}** 지역 데이터 전처리 중...")
 
-            st.write("✅ '세종' 지역 전처리 완료!")
+                # 선택한 지역 필터링 및 복사
+                region_df = df[df['지역'] == selected_region].copy()
 
-            # 3. describe 출력
-            st.subheader("📊 세종 지역 요약 통계 (df.describe())")
-            st.dataframe(df_sejong.describe())
+                # '-'를 0으로 치환
+                region_df.replace("-", 0, inplace=True)
 
-            # 4. info 출력
-            st.subheader("🔍 세종 지역 데이터프레임 구조 (df.info())")
-            buffer = io.StringIO()
-            df_sejong.info(buf=buffer)
-            st.text(buffer.getvalue())
+                # 숫자형 열 변환
+                numeric_cols = ['인구', '출생아수(명)', '사망자수(명)']
+                for col in numeric_cols:
+                    region_df[col] = (
+                        region_df[col].astype(str).str.replace(",", "").str.strip()
+                    )
+                    region_df[col] = pd.to_numeric(region_df[col], errors='coerce').fillna(0).astype(int)
+
+                st.success(f"✅ {selected_region} 지역 전처리 완료!")
+
+                # 요약 통계 출력
+                st.subheader(f"📊 {selected_region} 요약 통계 (describe())")
+                st.dataframe(region_df.describe())
+
+                # info 출력
+                st.subheader(f"🧾 {selected_region} 데이터프레임 구조 (info())")
+                buffer = io.StringIO()
+                region_df.info(buf=buffer)
+                st.text(buffer.getvalue())
+
 
 
 
