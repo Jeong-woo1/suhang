@@ -228,30 +228,31 @@ class EDA:
         ])
 
         # 1. 기초 통계
-        with tabs[0]:
-            st.subheader("📌 결측치 및 중복 확인")
+# 1. 기초 통계
+with tabs[0]:
+    st.subheader("📌 결측치 및 중복 확인")
 
-            # 문자열 '-'를 결측치로 간주
-            df.replace("-", np.nan, inplace=True)
+    st.markdown("**🔹 결측치 개수**")
+    st.dataframe(df.isnull().sum().reset_index().rename(columns={0: "결측치 수", "index": "열 이름"}))
 
-            # 결측치 개수 출력
-            st.write("🔎 결측치 개수 (NaN + '-') 포함:")
-            st.dataframe(df.isnull().sum())
+    duplicated_rows = df.duplicated().sum()
+    st.write(f"📄 **중복 행 개수**: {duplicated_rows}개")
 
-            # 결측치 0으로 채움 (이후 처리에 영향 없도록)
-            df.fillna(0, inplace=True)
+    st.subheader("📌 데이터프레임 구조 요약")
 
-            # 중복 행 개수 출력
-            duplicated_rows = df.duplicated().sum()
-            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
+    # df.info()를 표 형식으로 가공
+    info_df = pd.DataFrame({
+        "열 이름": df.columns,
+        "자료형": df.dtypes.astype(str).values,
+        "비결측값 수": df.notnull().sum().values,
+        "결측 포함 여부": df.isnull().any().replace({True: "O", False: "X"}).values
+    })
 
-            st.subheader("📌 데이터프레임 구조")
-            buf = io.StringIO()
-            df.info(buf=buf)
-            st.text(buf.getvalue())
+    st.dataframe(info_df)
 
-            st.subheader("📌 요약 통계량")
-            st.dataframe(df.describe())
+    st.subheader("📌 요약 통계량")
+    st.dataframe(df.describe())
+
 
         # 2. 연도별 추이
         with tabs[1]:
