@@ -270,20 +270,52 @@ class EDA:
 
         # 2. 연도별 추이
         with tabs[1]:
-            st.subheader("📈 연도별 전국 인구 추이")
+            st.subheader("📈 National Population Trend (with Projection to 2036)")
+
+            # 전국 데이터 필터링
             national = df[df['지역'] == '전국'].sort_values('연도')
 
+            # 연도, 인구, 출생, 사망
+            years = national['연도'].tolist()
+            population = national['인구'].tolist()
+            births = national['출생아수(명)'].tolist()
+            deaths = national['사망자수(명)'].tolist()
+
+            # 최근 3년 평균 자연 증가 계산
+            recent = national.tail(3)
+            avg_natural_increase = (recent['출생아수(명)'] - recent['사망자수(명)']).mean()
+
+            # 예측값 생성: 2024 ~ 2036 (2년 간격)
+            last_year = years[-1]
+            last_pop = population[-1]
+
+            future_years = list(range(last_year + 2, 2037, 2))  # 2024부터 시작
+            future_pops = []
+
+            # 첫 예측값 (2024)을 별도로 계산하여 연결용으로 사용
+            pop_2024 = last_pop + avg_natural_increase * 2
+            current_pop = pop_2024
+
+            for year in future_years:
+                current_pop += avg_natural_increase * 2
+                future_pops.append(current_pop)
+
             fig, ax = plt.subplots()
-            ax.plot(national['연도'], national['인구'], marker='o', label='Observed')
+
+            # 실제 관측값: 실선
+            ax.plot(years, population, marker='o', label='Observed', color='blue')
+
+            # 2022-2024 연결: 점선
+            ax.plot([last_year, 2024], [last_pop, pop_2024], linestyle='--', color='red')
+
+            # 이후 예측값 (2024 제외): 점선
+            future_plot_years = [2024] + future_years
+            future_plot_pops = [pop_2024] + future_pops
+            ax.plot(future_plot_years, future_plot_pops, marker='o', linestyle='--', color='red', label='Predicted')
+
             ax.set_xlabel("Year")
             ax.set_ylabel("Population")
             ax.set_title("National Population Trend")
-
-            # 2035년 예측
-            recent = national.tail(3)
-            avg_delta = (recent['인구'].iloc[-1] - recent['인구'].iloc[0]) / 2
-            pred_2035 = national['인구'].iloc[-1] + avg_delta * (2035 - national['연도'].iloc[-1])
-            ax.axhline(pred_2035, color='red', linestyle='--', label=f'Predicted 2035: {int(pred_2035):,}')
             ax.legend()
             st.pyplot(fig)
 
