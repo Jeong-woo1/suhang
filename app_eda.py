@@ -304,29 +304,46 @@ class EDA:
 
         # 3. 지역별 분석
         with tabs[2]:
-            st.subheader("🏙️ 최근 5년간 지역별 인구 변화량")
+            st.subheader("🏙️ Population Change by Region (Last 5 Years)")
+
+            # 지역명을 영어로 매핑
+            region_map = {
+                "서울": "Seoul", "부산": "Busan", "대구": "Daegu", "인천": "Incheon",
+                "광주": "Gwangju", "대전": "Daejeon", "울산": "Ulsan", "세종": "Sejong",
+                "경기": "Gyeonggi", "강원": "Gangwon", "충북": "Chungbuk", "충남": "Chungnam",
+                "전북": "Jeonbuk", "전남": "Jeonnam", "경북": "Gyeongbuk", "경남": "Gyeongnam",
+                "제주": "Jeju", "전국": "National"
+            }
+            df['지역'] = df['지역'].map(region_map)
+
             latest_year = df['연도'].max()
             past_year = latest_year - 5
             df_latest = df[df['연도'] == latest_year]
             df_past = df[df['연도'] == past_year]
 
-            merged = pd.merge(df_latest, df_past, on='지역', suffixes=('_최근', '_과거'))
-            merged['변화량'] = merged['인구_최근'] - merged['인구_과거']
-            merged = merged[merged['지역'] != '전국'].sort_values('변화량', ascending=False)
+            merged = pd.merge(df_latest, df_past, on='지역', suffixes=('_latest', '_past'))
+            merged['Change'] = merged['인구_latest'] - merged['인구_past']
+            merged = merged[merged['지역'] != 'National'].sort_values('Change', ascending=False)
 
             fig, ax = plt.subplots(figsize=(8, 6))
-            sns.barplot(x='변화량', y='지역', data=merged, ax=ax)
-            ax.set_xlabel("Change")
+            sns.barplot(x='Change', y='지역', data=merged, ax=ax)
+            ax.set_xlabel("Change (thousands)")
             ax.set_ylabel("Region")
+            ax.set_title("Population Change by Region (5 Years)")
+            for container in ax.containers:
+                ax.bar_label(container, fmt='%d', label_type='edge')
             st.pyplot(fig)
 
-            # 변화율 추가
-            merged['변화율(%)'] = (merged['변화량'] / merged['인구_과거']) * 100
+            merged['ChangeRate(%)'] = (merged['Change'] / merged['인구_past']) * 100
             fig2, ax2 = plt.subplots(figsize=(8, 6))
-            sns.barplot(x='변화율(%)', y='지역', data=merged, ax=ax2)
-            ax2.set_xlabel("Rate (%)")
+            sns.barplot(x='ChangeRate(%)', y='지역', data=merged, ax=ax2)
+            ax2.set_xlabel("Change Rate (%)")
             ax2.set_ylabel("Region")
+            ax2.set_title("Population Change Rate (%) by Region")
+            for container in ax2.containers:
+                ax2.bar_label(container, fmt='%.2f', label_type='edge')
             st.pyplot(fig2)
+
 
         # 4. 변화량 분석
         with tabs[3]:
