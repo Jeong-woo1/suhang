@@ -229,29 +229,38 @@ class EDA:
 
         # 1. 기초 통계
         with tabs[0]:
-            st.subheader("📌 결측치 및 중복 확인")
+            st.subheader("📌 Missing & Duplicate Check")
 
-            # 문자열 '-'를 결측치로 간주
+            # 문자열 '-'를 결측치로 간주하고 NaN으로 변환
             df.replace("-", np.nan, inplace=True)
 
             # 결측치 개수 출력
-            st.write("🔎 결측치 개수 (NaN + '-') 포함:")
-            st.dataframe(df.isnull().sum())
+            st.markdown("### 🔎 Missing Values Count")
+            missing = df.isnull().sum()
+            st.dataframe(missing[missing > 0] if missing.sum() > 0 else "✅ No missing values found.")
 
-            # 결측치 0으로 채움 (이후 처리에 영향 없도록)
+            # 결측치 0으로 채움 (이후 분석에 영향 없도록)
             df.fillna(0, inplace=True)
 
             # 중복 행 개수 출력
+            st.markdown("### 📄 Duplicate Rows")
             duplicated_rows = df.duplicated().sum()
-            st.write(f"📄 중복 행 개수: {duplicated_rows}개")
+            st.write(f"Total duplicate rows: **{duplicated_rows}**")
 
-            st.subheader("📌 데이터프레임 구조")
+            # 데이터프레임 구조 출력
+            st.subheader("📌 Data Structure Info")
             buf = io.StringIO()
             df.info(buf=buf)
             st.text(buf.getvalue())
 
-            st.subheader("📌 요약 통계량")
-            st.dataframe(df.describe())
+            # 수치형 컬럼만 추출 후 요약 통계
+            st.subheader("📌 Descriptive Statistics")
+            numeric_df = df.select_dtypes(include=[np.number])
+            if not numeric_df.empty:
+                st.dataframe(numeric_df.describe())
+            else:
+                st.write("No numeric columns available for summary.")
+
 
 
 
